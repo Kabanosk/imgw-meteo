@@ -19,7 +19,9 @@ def _as_list(value: object | None) -> list | None:
         return None
     if isinstance(value, (str, int)):
         return [value]
-    return list(value)  # type: ignore[arg-type]
+    if isinstance(value, Iterable):
+        return list(value)
+    return [value]
 
 
 class IMGWClient:

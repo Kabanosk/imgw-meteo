@@ -221,3 +221,6 @@ __marimo__/
 
 # JetBrains IDE
 .idea/
+
+# Sphinx docs build
+docs/_build/
