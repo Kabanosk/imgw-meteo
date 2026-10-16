@@ -209,12 +209,64 @@ class Dataset:
             df.to_csv(path, index=False, encoding="utf-8")
         return path
 
-    def get_dataloaders(self, *args: object, **kwargs: object):
-        """Build PyTorch dataloaders for this selection.
+    def get_dataloaders(
+        self,
+        *,
+        features: list[str],
+        targets: list[str],
+        input_window: int,
+        horizon: int = 1,
+        stride: int = 1,
+        split: tuple[float, float, float] = (0.7, 0.15, 0.15),
+        split_mode: str = "chronological",
+        normalize: str = "zscore",
+        fill_missing: str = "none",
+        batch_size: int = 64,
+        shuffle_train: bool = True,
+        num_workers: int = 0,
+        dtype: str = "float32",
+        seed: int = 42,
+    ):
+        """Materialize this selection and build PyTorch dataloaders.
 
-        .. note::
-           Not implemented yet — arrives in a later iteration (``ml.torch``).
+        Lazily imports :mod:`imgw_meteo.ml.torch`, so PyTorch is required only
+        when this method is called (install the ``[torch]`` extra).
 
-        :raises NotImplementedError: Always, until the ML layer lands.
+        :param features: Input feature columns, e.g. ``["TMAX", "TMIN", "STD"]``.
+        :param targets: Target columns to predict, e.g. ``["TMAX"]``.
+        :param input_window: Number of past steps per input window.
+        :param horizon: Number of future steps to predict.
+        :param stride: Step between consecutive window starts.
+        :param split: Train/val/test fractions (must sum to 1.0).
+        :param split_mode: ``"chronological"`` (no leakage) or ``"random"``.
+        :param normalize: ``"zscore"``, ``"minmax"`` or ``"none"`` (features only;
+            targets stay in physical units).
+        :param fill_missing: ``"none"``, ``"forward"``, ``"mean"`` or ``"drop"``.
+        :param batch_size: DataLoader batch size.
+        :param shuffle_train: Shuffle the training loader only.
+        :param num_workers: DataLoader worker processes.
+        :param dtype: Tensor dtype, ``"float32"`` or ``"float64"``.
+        :param seed: Seed for the random split.
+        :returns: A ``DataLoaders`` bundle (also unpackable as
+            ``train, val, test = loaders``), carrying the fitted scaler.
         """
-        raise NotImplementedError("get_dataloaders arrives in the next iteration (ml.torch).")
+        df = self.get_dataframe()
+        from .ml.torch import build_dataloaders
+
+        return build_dataloaders(
+            df,
+            features=features,
+            targets=targets,
+            input_window=input_window,
+            horizon=horizon,
+            stride=stride,
+            split=split,
+            split_mode=split_mode,
+            normalize=normalize,
+            fill_missing=fill_missing,
+            batch_size=batch_size,
+            shuffle_train=shuffle_train,
+            num_workers=num_workers,
+            dtype=dtype,
+            seed=seed,
+        )

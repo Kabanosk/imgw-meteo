@@ -1,12 +1,7 @@
-"""Machine-learning adapters (PyTorch-first). Lazily import frameworks.
+"""Machine-learning adapters.
 
-This iteration ships the public surface; ``get_dataloaders`` is implemented in
-the next iteration.
+The framework-agnostic windowing lives in :mod:`imgw_meteo.ml.windowing` and
+has no heavy dependencies. The PyTorch adapter lives in
+:mod:`imgw_meteo.ml.torch` and imports torch lazily (install the ``[torch]``
+extra). The public entry point for most users is ``Dataset.get_dataloaders``.
 """
-
-
-def get_dataloaders(*args: object, **kwargs: object):  # pragma: no cover - stub
-    raise NotImplementedError("get_dataloaders arrives in the next iteration (ml.torch).")
-
-
-__all__ = ["get_dataloaders"]

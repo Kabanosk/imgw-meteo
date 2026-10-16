@@ -30,6 +30,10 @@ jobs:
       - name: Install project (with dev + cli extras)
         run: uv pip install -e ".[dev,cli]"
 
+      - name: Install PyTorch (CPU) for ML tests
+        if: matrix.python-version == '3.12'
+        run: uv pip install torch --index-url https://download.pytorch.org/whl/cpu
+
       - name: Lint (ruff)
         run: uv run ruff check src/ tests/
 

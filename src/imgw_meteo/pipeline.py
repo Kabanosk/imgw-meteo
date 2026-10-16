@@ -76,11 +76,7 @@ def _merge_members(members: dict[str, pd.DataFrame], config: StandardizationConf
     return base
 
 
-def _read_and_standardize(
-    downloader: Downloader,
-    spec: FileSpec,
-    config: StandardizationConfig,
-) -> pd.DataFrame:
+def _read_and_standardize(downloader: Downloader, spec: FileSpec, config: StandardizationConfig) -> pd.DataFrame:
     """Download one zip, standardize each member, and merge into one frame.
 
     Each member is matched to its own canonical schema by filename, so dual
