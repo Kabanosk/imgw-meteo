@@ -39,7 +39,7 @@ class IMGWWindowDataset(_TorchDataset):
     def __len__(self) -> int:
         return self._x.shape[0]
 
-    def __getitem__(self, index: int) -> tuple["torch.Tensor", "torch.Tensor"]:
+    def __getitem__(self, index: int) -> tuple[torch.Tensor, torch.Tensor]:
         return self._x[index], self._y[index]
 
 
