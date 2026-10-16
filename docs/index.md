@@ -55,8 +55,11 @@ print(df[["datetime", "POST", "TMAX", "TMIN", "SMDB"]].head())
 :maxdepth: 2
 :caption: Contents
 
+installation
 quickstart
 guide/index
 examples/index
 api/index
+contributing
+changelog
 ```

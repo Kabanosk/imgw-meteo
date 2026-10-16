@@ -88,14 +88,6 @@ imgw-meteo years --freq daily --type synop
 imgw-meteo fetch --freq daily --type synop --year 2025 --month 6 --output out.parquet
 ```
 
-## Data coverage
-
-| | synop | klimat | opad |
-|---|---|---|---|
-| daily | ✅ | ✅ | ✅ |
-| monthly | ✅ | ✅ | ✅ |
-| term | ✅ | ✅ | — (not published) |
-
 ## Documentation
 
 Full guide, configuration reference, and examples:
