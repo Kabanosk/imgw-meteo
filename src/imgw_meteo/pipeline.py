@@ -9,8 +9,8 @@ import warnings
 import pandas as pd
 
 from . import catalog
-from .canonical import column_names
-from .catalog import FileSpec, is_term_member
+from .canonical import column_names_for_code, is_term_code, member_schema_code
+from .catalog import FileSpec
 from .config import StandardizationConfig
 from .constants import Frequency, StationType
 from .downloader import Downloader
@@ -49,32 +49,62 @@ def resolve(
     return specs
 
 
+def _merge_members(members: dict[str, pd.DataFrame], config: StandardizationConfig) -> pd.DataFrame:
+    """Merge the members of one zip into a single wide frame.
+
+    The primary (non-term) member provides the base rows; term members are
+    joined on the shared identity columns so their measurements become extra
+    columns rather than extra rows. Overlapping measurement names from a term
+    member are suffixed with ``_t`` to avoid collisions.
+    """
+    primary_code = next((c for c in members if not is_term_code(c)), None)
+    if primary_code is None:
+        # Only term member(s) present (rare); just concat them.
+        return pd.concat(members.values(), ignore_index=True)
+
+    base = members[primary_code]
+    join_keys = [k for k in ("datetime", "NSP", "ROK", "MC", "DZ", "GG") if k in base.columns]
+    for code, frame in members.items():
+        if code == primary_code:
+            continue
+        value_cols = [c for c in frame.columns if c not in join_keys]
+        right = frame[join_keys + value_cols]
+        overlap = (set(value_cols) & set(base.columns)) - set(join_keys)
+        if overlap:
+            right = right.rename(columns={c: f"{c}_t" for c in overlap})
+        base = base.merge(right, on=join_keys, how="left")
+    return base
+
+
 def _read_and_standardize(
     downloader: Downloader,
     spec: FileSpec,
-    frequency: Frequency,
-    station_type: StationType,
     config: StandardizationConfig,
-) -> list[pd.DataFrame]:
-    """Download one zip and standardize each relevant CSV member."""
-    cols = column_names(frequency, station_type)
+) -> pd.DataFrame:
+    """Download one zip, standardize each member, and merge into one frame.
+
+    Each member is matched to its own canonical schema by filename, so dual
+    schemas (e.g. ``s_d`` + ``s_d_t``, or monthly ``*_m_d`` + ``*_m_t``) are
+    both handled correctly. Term members are included only when
+    ``config.include_term`` is set, and are merged onto the primary member's
+    rows (wider rows), not stacked as extra rows.
+    """
     zip_path = downloader.fetch_file(spec.url)
-    frames: list[pd.DataFrame] = []
+    members: dict[str, pd.DataFrame] = {}
     for member in list_members(zip_path):
-        if is_term_member(member):
-            # The synop term (s_d_t) schema is not defined yet. Honor the flag
-            # honestly: warn when the user explicitly asked for it, never claim
-            # success silently.
-            if config.include_term:
-                warnings.warn(
-                    "include_term=True but the synop term (s_d_t) schema is not "
-                    "implemented yet; term members are skipped.",
-                    stacklevel=2,
-                )
+        try:
+            code = member_schema_code(member)
+        except KeyError:
+            warnings.warn(f"skipping member with unknown schema: {member}", stacklevel=2)
             continue
+        if is_term_code(code) and not config.include_term:
+            continue
+        cols = column_names_for_code(code)
         raw = read_zip_member(zip_path, member, cols)
-        frames.append(standardize(raw, frequency, station_type, config))
-    return frames
+        members[code] = standardize(raw, code, config)
+    if not members:
+        return pd.DataFrame()
+    return _merge_members(members, config)
 
 
 def _filter_stations(df: pd.DataFrame, stations: list[str]) -> pd.DataFrame:
@@ -120,7 +150,9 @@ def load_selection(
     specs = resolve(downloader, frequency, station_type, years, months, stations)
     frames: list[pd.DataFrame] = []
     for spec in specs:
-        frames.extend(_read_and_standardize(downloader, spec, frequency, station_type, config))
+        frame = _read_and_standardize(downloader, spec, config)
+        if not frame.empty:
+            frames.append(frame)
     if not frames:
         raise SelectionError("selection produced no data")
     df = pd.concat(frames, ignore_index=True)

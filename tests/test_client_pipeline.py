@@ -1,7 +1,5 @@
 """End-to-end pipeline/client tests with mocked HTTP (no real network)."""
 
-import warnings
-
 import pytest
 
 from imgw_meteo import ClientConfig, IMGWClient
@@ -32,24 +30,32 @@ def test_klimat_end_to_end(httpx_mock, client, klimat_zip_bytes):
     assert str(df["datetime"].iloc[0].date()) == "2025-06-01"
 
 
-def test_synop_skips_term_member(httpx_mock, tmp_path, synop_zip_bytes):
+def test_synop_merges_term_member(httpx_mock, tmp_path, synop_zip_bytes):
     httpx_mock.add_response(url=f"{BASE}/synop/2016/", text=_index_html(["2016_100_s.zip"]))
     httpx_mock.add_response(url=f"{BASE}/synop/2016/2016_100_s.zip", content=synop_zip_bytes)
-    # include_term=True but term schema unimplemented -> warns, skips term member.
+    # include_term=True merges the term member onto the primary rows (wider),
+    # not as extra rows.
     from imgw_meteo import StandardizationConfig
 
     client = IMGWClient(
         config=ClientConfig(cache_dir=str(tmp_path), refresh="never"),
         standardization=StandardizationConfig(include_term=True),
     )
-    with warnings.catch_warnings(record=True) as caught:
-        warnings.simplefilter("always")
-        df = client.select(frequency="daily", station_type="synop", years=2016, stations="100").get_dataframe()
+    df = client.select(frequency="daily", station_type="synop", years=2016, stations="100").get_dataframe()
 
-    # Only the main s_d member contributes (1 row), not the term member.
+    # Still one row (merged, not stacked); term columns (e.g. CPW) now present.
     assert len(df) == 1
     assert float(df["TMAX"].iloc[0]) == pytest.approx(-0.4, abs=1e-4)
-    assert any("term" in str(w.message) for w in caught)
+    assert "CPW" in df.columns  # from the s_d_t term member
+
+
+def test_synop_excludes_term_by_default(httpx_mock, tmp_path, synop_zip_bytes):
+    httpx_mock.add_response(url=f"{BASE}/synop/2016/", text=_index_html(["2016_100_s.zip"]))
+    httpx_mock.add_response(url=f"{BASE}/synop/2016/2016_100_s.zip", content=synop_zip_bytes)
+    client = IMGWClient(config=ClientConfig(cache_dir=str(tmp_path), refresh="never"))
+    df = client.select(frequency="daily", station_type="synop", years=2016, stations="100").get_dataframe()
+    assert len(df) == 1
+    assert "CPW" not in df.columns  # term member not included
 
 
 def test_available_years(httpx_mock, client):

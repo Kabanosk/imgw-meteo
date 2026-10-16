@@ -28,10 +28,15 @@ def test_parse_index_filters_parent_and_queries():
     assert not any(n.startswith(("..", "?")) for n in names)
 
 
-def test_is_term_member():
-    assert catalog.is_term_member("s_d_t_100_2016.csv") is True
-    assert catalog.is_term_member("s_d_100_2016.csv") is False
-    assert catalog.is_term_member("k_d_06_2025.csv") is False
+def test_member_schema_code_and_term():
+    from imgw_meteo.canonical import is_term_code, member_schema_code
+
+    assert member_schema_code("s_d_t_100_2016.csv") == "s_d_t"
+    assert member_schema_code("s_d_100_2016.csv") == "s_d"
+    assert member_schema_code("o_d_06_2025.csv") == "o_d"
+    assert member_schema_code("s_m_d_2015.csv") == "s_m_d"
+    assert is_term_code("s_d_t") is True
+    assert is_term_code("s_d") is False
 
 
 def test_resolve_per_month_file():

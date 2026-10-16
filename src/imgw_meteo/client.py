@@ -9,6 +9,7 @@ from . import catalog, pipeline
 from .config import ClientConfig, StandardizationConfig
 from .constants import BASE_URL, SOURCE_ENCODING, STATIONS_FILE, Frequency, StationType
 from .downloader import Downloader
+from .exceptions import SelectionError
 from .stations import StationRegistry, parse_stations
 
 
@@ -131,10 +132,19 @@ class IMGWClient:
         month_list = _as_list(months)
         if month_list is not None:
             month_list = sorted(month_list)
+        freq = Frequency.parse(frequency)
+        stype = StationType.parse(station_type)
+        # Fail fast on combinations IMGW does not publish (e.g. term/opad).
+        from .canonical import schema_codes
+
+        try:
+            schema_codes(freq, stype)
+        except KeyError as exc:
+            raise SelectionError(str(exc)) from None
         return Dataset(
             client=self,
-            frequency=Frequency.parse(frequency),
-            station_type=StationType.parse(station_type),
+            frequency=freq,
+            station_type=stype,
             years=year_list,
             months=month_list,
             stations=_as_list(stations),

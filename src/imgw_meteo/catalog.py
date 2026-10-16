@@ -87,9 +87,9 @@ def zip_name(
         return f"{year}_{station_code}_{tcode}.zip"
     if month is not None:
         return f"{year}_{month:02d}_{tcode}.zip"
-    # Monthly frequency: one zip per year, all stations.
+    # Monthly frequency: one zip per year, all stations, e.g. 2015_m_s.zip.
     if frequency is Frequency.MONTHLY:
-        return f"{year}_{tcode}.zip"
+        return f"{year}_m_{tcode}.zip"
     raise ValueError(
         "Daily/term selection requires either a month (all-station file) or a station_code (per-station file)."
     )
@@ -132,15 +132,15 @@ class FileSpec:
     station_key: str | None  # set for per-station files
 
 
-def is_term_member(member: str) -> bool:
-    """True if a CSV member belongs to the synop *term* set (``*_t_*``)."""
-    parts = member.rsplit("/", 1)[-1].split("_")
-    # e.g. s_d_t_100_2016.csv -> ["s", "d", "t", "100", "2016.csv"]
-    return len(parts) >= 4 and parts[2] == "t"
-
-
 def _classify_zip(name: str, year: int) -> FileSpec | None:
-    """Turn a listing entry into a FileSpec if it matches ``year``, else None."""
+    """Turn a listing entry into a FileSpec if it matches ``year``, else None.
+
+    Recognizes the three IMGW zip layouts::
+
+        YYYY_MM_<type>.zip     per-month, all-station  (daily/term current era)
+        YYYY_<code>_<type>.zip per-station per-year    (synop daily/term)
+        YYYY_m_<type>.zip      monthly, all-station    (miesieczne)
+    """
     if not name.endswith(".zip"):
         return None
     stem = name[: -len(".zip")]
@@ -152,11 +152,12 @@ def _classify_zip(name: str, year: int) -> FileSpec | None:
     station_key: str | None = None
     if len(parts) == 3:
         middle = parts[1]
-        if middle.isdigit() and len(middle) == 2:
+        if middle == "m":
+            pass  # monthly file: no month/station key
+        elif middle.isdigit() and len(middle) == 2:
             month = int(middle)  # per-month, all-station file
         else:
             station_key = middle  # per-station file
-    # len(parts) == 2 (monthly, one zip per year) leaves both None.
     return FileSpec(url="", name=name, year=year, month=month, station_key=station_key)
 
 

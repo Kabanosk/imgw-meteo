@@ -22,6 +22,13 @@ _SYNOP_TAIL = ',"9"' * 48  # pad remaining columns to reach 65
 SYNOP_ROW = _SYNOP_HEAD + _SYNOP_TAIL + "\n"
 
 
+# A synop daily term (s_d_t, 23-column) row, matching the s_d row's keys so a
+# merge on (NSP, ROK, MC, DZ) lines up.
+SYNOP_TERM_ROW = (
+    '"354150100","KOŁOBRZEG","2016","01","01",5,"",3.2,"",-1.9,"",6.1,"",88,"",1013.2,"",1014.0,"",0.0,"",0.0,""\n'
+)
+
+
 def make_zip(members: dict[str, str]) -> bytes:
     """Build an in-memory zip whose members are cp1250-encoded CSV text."""
     buf = io.BytesIO()
@@ -42,7 +49,7 @@ def synop_zip_bytes() -> bytes:
     return make_zip(
         {
             "s_d_100_2016.csv": SYNOP_ROW,
-            "s_d_t_100_2016.csv": SYNOP_ROW,  # term member (should be skipped)
+            "s_d_t_100_2016.csv": SYNOP_TERM_ROW,  # term member (23 cols)
         }
     )
 

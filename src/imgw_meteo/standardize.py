@@ -21,13 +21,11 @@ from dataclasses import dataclass
 import numpy as np
 import pandas as pd
 
-from .canonical import get_schema
+from .canonical import get_schema_by_code
 from .config import StandardizationConfig
 from .constants import (
     STATUS_NO_MEASUREMENT,
     STATUS_NO_PHENOMENON,
-    Frequency,
-    StationType,
 )
 from .models import ColumnSpec
 
@@ -107,17 +105,25 @@ def _step_keep_status(ctx: _Ctx) -> None:
 
 
 def _step_datetime(ctx: _Ctx) -> None:
-    """Insert a 'datetime' column assembled from ROK/MC/DZ."""
-    if not ctx.config.add_datetime or not {"ROK", "MC", "DZ"}.issubset(ctx.out.columns):
+    """Insert a 'datetime' column assembled from the available date parts.
+
+    * daily: ROK + MC + DZ
+    * term:  ROK + MC + DZ + GG (hour)
+    * monthly: ROK + MC (first of month)
+    """
+    if not ctx.config.add_datetime:
         return
-    ctx.out.insert(
-        0,
-        "datetime",
-        pd.to_datetime(
-            dict(year=ctx.out["ROK"], month=ctx.out["MC"], day=ctx.out["DZ"]),
-            errors="coerce",
-        ),
-    )
+    cols = ctx.out.columns
+    if not {"ROK", "MC"}.issubset(cols):
+        return
+    parts = {
+        "year": ctx.out["ROK"],
+        "month": ctx.out["MC"],
+        "day": ctx.out["DZ"] if "DZ" in cols else 1,
+    }
+    if "GG" in cols:
+        parts["hour"] = ctx.out["GG"]
+    ctx.out.insert(0, "datetime", pd.to_datetime(parts, errors="coerce"))
 
 
 def _step_english_aliases(ctx: _Ctx) -> None:
@@ -138,28 +144,23 @@ _STEPS = (
 )
 
 
-def standardize(
-    df: pd.DataFrame,
-    frequency: Frequency,
-    station_type: StationType,
-    config: StandardizationConfig,
-) -> pd.DataFrame:
-    """Standardize one parsed file to the canonical schema.
+def standardize(df: pd.DataFrame, schema_code: str, config: StandardizationConfig) -> pd.DataFrame:
+    """Standardize one parsed CSV member to its canonical schema.
 
     :param df: Raw, all-string table as read from one CSV member.
-    :param frequency: Temporal resolution (selects the canonical schema).
-    :param station_type: Station type (selects the canonical schema).
+    :param schema_code: Member schema code, e.g. ``"s_d"``, ``"s_d_t"``,
+        ``"o_d"``, ``"s_m_d"``.
     :param config: Options controlling the cleaning steps.
     :returns: A cleaned, typed table following the canonical schema.
     :rtype: pandas.DataFrame
     """
-    schema = get_schema(frequency, station_type)
+    schema = get_schema_by_code(schema_code)
     ctx = _Ctx(raw=df, schema=schema, config=config, out=pd.DataFrame(index=df.index))
     for step in _STEPS:
         step(ctx)
     return ctx.out
 
 
-def canonical_columns(frequency: Frequency, station_type: StationType) -> list[ColumnSpec]:
+def canonical_columns(schema_code: str) -> list[ColumnSpec]:
     """Return the measurement/key specs that survive standardization."""
-    return [c for c in get_schema(frequency, station_type) if not c.is_status]
+    return [c for c in get_schema_by_code(schema_code) if not c.is_status]
